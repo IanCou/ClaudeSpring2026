@@ -24,25 +24,30 @@ import java.util.concurrent.ExecutionException;
 
 public final class CraftingHandler {
 
-    private CraftingHandler() {}
+    private CraftingHandler() {
+    }
 
     public static ToolResult craft(ToolCall call) {
         String itemName = call.argString("item", "").toLowerCase().trim();
-        if (itemName.isEmpty()) return ToolResult.fail("craft", "missing item");
+        if (itemName.isEmpty())
+            return ToolResult.fail("craft", "missing item");
         int quantity = Math.max(1, call.argInt("quantity", 1));
 
         ResourceLocation rl = itemName.contains(":")
-            ? new ResourceLocation(itemName)
-            : new ResourceLocation("minecraft", itemName);
+                ? new ResourceLocation(itemName)
+                : new ResourceLocation("minecraft", itemName);
         Item target = Item.REGISTRY.getObject(rl);
-        if (target == null) return ToolResult.fail("craft", "unknown item: " + rl);
+        if (target == null)
+            return ToolResult.fail("craft", "unknown item: " + rl);
 
         IRecipe recipe = findRecipeFor(target);
-        if (recipe == null) return ToolResult.fail("craft", "no recipe for " + rl);
+        if (recipe == null)
+            return ToolResult.fail("craft", "no recipe for " + rl);
 
         boolean needs3x3 = !recipe.canFit(2, 2);
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.player == null) return ToolResult.fail("craft", "no player");
+        if (mc.player == null)
+            return ToolResult.fail("craft", "no player");
 
         if (needs3x3 && !hasCraftingTableNear(mc.player)) {
             return ToolResult.fail("craft", "need a crafting table within 4.5 blocks for " + rl);
@@ -58,9 +63,9 @@ public final class CraftingHandler {
         final int fQuantity = quantity;
         final String fItemName = rl.toString();
         try {
-            server.addScheduledTask(() ->
-                holder[0] = doCraftOnServer(server, mc.player.getUniqueID(), fRecipe, fQuantity, fItemName)
-            ).get();
+            server.addScheduledTask(
+                    () -> holder[0] = doCraftOnServer(server, mc.player.getUniqueID(), fRecipe, fQuantity, fItemName))
+                    .get();
         } catch (InterruptedException | ExecutionException e) {
             return ToolResult.fail("craft", "server task failed: " + e.getMessage());
         }
@@ -69,9 +74,10 @@ public final class CraftingHandler {
 
     /** Runs on the server thread. */
     private static ToolResult doCraftOnServer(IntegratedServer server, java.util.UUID playerId,
-                                              IRecipe recipe, int quantity, String itemName) {
+            IRecipe recipe, int quantity, String itemName) {
         EntityPlayerMP sp = server.getPlayerList().getPlayerByUUID(playerId);
-        if (sp == null) return ToolResult.fail("craft", "server player not found");
+        if (sp == null)
+            return ToolResult.fail("craft", "server player not found");
 
         InventoryPlayer inv = sp.inventory;
         int perCraft = Math.max(1, recipe.getRecipeOutput().getCount());
@@ -80,7 +86,8 @@ public final class CraftingHandler {
 
         for (int i = 0; i < craftsNeeded; i++) {
             Map<Integer, Integer> plan = planConsumption(inv, recipe.getIngredients());
-            if (plan == null) break;
+            if (plan == null)
+                break;
 
             for (Map.Entry<Integer, Integer> e : plan.entrySet()) {
                 inv.decrStackSize(e.getKey(), e.getValue());
@@ -104,30 +111,38 @@ public final class CraftingHandler {
     private static IRecipe findRecipeFor(Item targetItem) {
         for (IRecipe r : CraftingManager.REGISTRY) {
             ItemStack out = r.getRecipeOutput();
-            if (!out.isEmpty() && out.getItem() == targetItem) return r;
+            if (!out.isEmpty() && out.getItem() == targetItem)
+                return r;
         }
         return null;
     }
 
-    /** Returns a map of inventory slot → count to consume, or null if ingredients are missing. */
+    /**
+     * Returns a map of inventory slot → count to consume, or null if ingredients
+     * are missing.
+     */
     private static Map<Integer, Integer> planConsumption(InventoryPlayer inv,
-                                                         NonNullList<Ingredient> ingredients) {
+            NonNullList<Ingredient> ingredients) {
         Map<Integer, Integer> consumed = new HashMap<>();
         for (Ingredient ing : ingredients) {
-            if (ing == Ingredient.EMPTY) continue;
+            if (ing == Ingredient.EMPTY)
+                continue;
             boolean satisfied = false;
             for (int slot = 0; slot < inv.mainInventory.size(); slot++) {
                 ItemStack stack = inv.mainInventory.get(slot);
-                if (stack.isEmpty()) continue;
+                if (stack.isEmpty())
+                    continue;
                 int alreadyUsed = consumed.getOrDefault(slot, 0);
-                if (stack.getCount() - alreadyUsed <= 0) continue;
+                if (stack.getCount() - alreadyUsed <= 0)
+                    continue;
                 if (ing.apply(stack)) {
                     consumed.merge(slot, 1, Integer::sum);
                     satisfied = true;
                     break;
                 }
             }
-            if (!satisfied) return null;
+            if (!satisfied)
+                return null;
         }
         return consumed;
     }
@@ -139,9 +154,11 @@ public final class CraftingHandler {
             for (int dy = -3; dy <= 3; dy++) {
                 for (int dz = -5; dz <= 5; dz++) {
                     BlockPos pos = pp.add(dx, dy, dz);
-                    if (pp.distanceSq(pos) > r * r) continue;
+                    if (pp.distanceSq(pos) > r * r)
+                        continue;
                     IBlockState bs = p.world.getBlockState(pos);
-                    if (bs.getBlock() == Blocks.CRAFTING_TABLE) return true;
+                    if (bs.getBlock() == Blocks.CRAFTING_TABLE)
+                        return true;
                 }
             }
         }

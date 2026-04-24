@@ -24,6 +24,7 @@ public final class CommandExecutor {
                 case "sneak":            return doToggleKey(call, input, InputState.sneak(), "sneak");
                 case "sprint":           return doToggleKey(call, input, InputState.sprint(), "sprint");
                 case "stop":             return doStop(input);
+                case "mine_blocks":      return ToolResult.ok("mine_blocks", "started (queue handles completion)");
                 case "select_slot":      return doSelectSlot(call);
                 case "swap_hands":       return doTap(input, InputState.swap(), "swap_hands");
                 case "drop":             return doDrop(call, input);
@@ -34,6 +35,7 @@ public final class CommandExecutor {
                 case "withdraw":         return StorageHandler.withdraw(call);
                 case "respawn":          return doRespawn();
                 case "run_macro":        return MacroHandler.runMacro(call);
+                case "define_macro":     return MacroHandler.defineMacro(call);
                 default:                 return ToolResult.fail(call.name, "unknown tool");
             }
         } catch (Exception e) {
@@ -138,6 +140,7 @@ public final class CommandExecutor {
 
     private static ToolResult doStop(InputState input) {
         input.releaseAll();
+        com.voiceannounce.handler.MineBlocksHandler.abort(input);
         return ToolResult.ok("stop", "all inputs released");
     }
 

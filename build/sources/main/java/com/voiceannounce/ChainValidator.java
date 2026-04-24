@@ -1,6 +1,7 @@
 package com.voiceannounce;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -16,8 +17,13 @@ public final class ChainValidator {
     private static final Set<String> ALLOWED = new HashSet<>(Arrays.asList(
         "move", "look", "left_click", "right_click", "jump", "sneak", "sprint",
         "stop", "select_slot", "swap_hands", "drop", "open_inventory",
-        "close_container", "craft", "deposit", "withdraw", "respawn", "run_macro"
+        "close_container", "craft", "deposit", "withdraw", "respawn",
+        "mine_blocks", "run_macro", "define_macro"
     ));
+
+    public static Set<String> allowedTools() {
+        return Collections.unmodifiableSet(ALLOWED);
+    }
 
     public static Result validate(List<ToolCall> chain) {
         if (chain == null || chain.isEmpty()) return Result.ok();

@@ -3,6 +3,7 @@ package com.voiceannounce;
 import com.voiceannounce.handler.GameTickHandler;
 import com.voiceannounce.handler.KeyInputHandler;
 import com.voiceannounce.handler.MacroHandler;
+import com.voiceannounce.handler.MineBlocksHandler;
 import com.voiceannounce.handler.RenderOverlayHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.common.MinecraftForge;
@@ -60,6 +61,7 @@ public class VoiceAnnounce {
         MinecraftForge.EVENT_BUS.register(new KeyInputHandler());
         MinecraftForge.EVENT_BUS.register(new RenderOverlayHandler());
         MinecraftForge.EVENT_BUS.register(new GameTickHandler(commandQueue));
+        MinecraftForge.EVENT_BUS.register(new MineBlocksHandler());
     }
 
     @Mod.EventHandler
@@ -82,6 +84,7 @@ public class VoiceAnnounce {
         }
 
         MacroHandler.loadFromGameDir(gameDir);
+        com.voiceannounce.handler.TriggerMatcher.loadFromGameDir(gameDir);
 
         String apiKey = resolveApiKey(gameDir);
         if (apiKey == null || apiKey.isEmpty()) {

@@ -4,7 +4,8 @@ import com.voiceannounce.ToolCall;
 import com.voiceannounce.ToolResult;
 
 public final class StorageHandler {
-    private StorageHandler() {}
+    private StorageHandler() {
+    }
 
     public static ToolResult deposit(ToolCall call) {
         return ToolResult.fail("deposit", "not yet implemented");

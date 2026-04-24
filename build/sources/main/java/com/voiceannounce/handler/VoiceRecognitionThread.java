@@ -104,6 +104,42 @@ public class VoiceRecognitionThread {
         transcript = transcript.trim();
         showTranscript(transcript);
 
+        // Local-first dispatch: try VoiceBot-style phrase triggers before
+        // burning a Gemini turn. If a trigger matches, queue its macro/steps
+        // directly and skip the model entirely.
+        try {
+            TriggerMatcher.Match local = TriggerMatcher.match(transcript);
+            if (local != null) {
+                JsonObject state = fetchState();
+                List<ToolCall> steps;
+                if (local.trigger.macroName != null) {
+                    steps = MacroHandler.expandMacro(local.trigger.macroName, state, local.params);
+                    if (steps == null) {
+                        sendChat(TextFormatting.RED + "[voice] trigger references unknown macro: "
+                            + local.trigger.macroName);
+                        RenderOverlayHandler.setState(RenderOverlayHandler.State.IDLE);
+                        return;
+                    }
+                } else {
+                    steps = MacroHandler.convertJsonSteps(local.trigger.inlineSteps, local.params);
+                }
+                ChainValidator.Result v = ChainValidator.validate(steps);
+                if (!v.ok) {
+                    sendChat(TextFormatting.RED + "[voice] " + v.error);
+                } else if (steps.isEmpty()) {
+                    sendChat(TextFormatting.AQUA + "[voice] (trigger matched, no steps)");
+                } else {
+                    VoiceAnnounce.getQueue().submit(steps);
+                    sendChat(TextFormatting.DARK_GRAY + "[voice] trigger '" + local.trigger.firstPhrase
+                        + "' → " + steps.size() + " step(s)");
+                }
+                RenderOverlayHandler.setState(RenderOverlayHandler.State.IDLE);
+                return;
+            }
+        } catch (Exception e) {
+            VoiceAnnounce.LOGGER.error("[VoiceAnnounce] trigger dispatch failed", e);
+        }
+
         GeminiClient client = VoiceAnnounce.getClient();
         if (client == null) {
             sendChat(TextFormatting.RED + "[voice] No Gemini API key configured.");
@@ -115,28 +151,53 @@ public class VoiceRecognitionThread {
             JsonObject state = fetchState();
             List<ToolCall> calls = client.sendTurn(transcript, state);
 
-            // Flatten macros: a run_macro call is replaced by its expansion. The
-            // run_macro stub itself is dropped so it doesn't eat one of the 5 step
-            // slots in ChainValidator (its execution is a no-op at queue time).
+            // Process macro ops up front:
+            //   define_macro — register and persist; result reported back to model.
+            //   run_macro    — replaced by expansion; the stub itself is dropped.
+            // Both are filtered out before validation/queue.
             List<ToolCall> flattened = new ArrayList<>();
+            List<ToolResult> macroOps = new ArrayList<>();
+            boolean unknownMacro = false;
+            String unknownMacroName = null;
             for (ToolCall c : calls) {
-                if (c.name.equals("run_macro")) {
-                    com.voiceannounce.handler.MacroHandler.runMacro(c);
-                    flattened.addAll(com.voiceannounce.handler.MacroHandler.drainExpansion());
+                if (c.name.equals("define_macro")) {
+                    ToolResult r = MacroHandler.defineMacro(c);
+                    macroOps.add(r);
+                    sendChat((r.ok ? TextFormatting.GRAY : TextFormatting.RED)
+                        + "[voice] " + r.message);
+                } else if (c.name.equals("run_macro")) {
+                    String macroName = c.argString("name", "");
+                    List<ToolCall> exp = MacroHandler.expandMacro(macroName, state);
+                    if (exp == null) {
+                        unknownMacro = true;
+                        unknownMacroName = macroName;
+                        break;
+                    }
+                    flattened.addAll(exp);
                 } else {
                     flattened.add(c);
                 }
+            }
+            if (unknownMacro) {
+                sendChat(TextFormatting.RED + "[voice] unknown macro: " + unknownMacroName);
+                macroOps.add(ToolResult.fail("run_macro", "unknown macro: " + unknownMacroName));
+                client.reportResults(macroOps);
+                return;
             }
 
             ChainValidator.Result validation = ChainValidator.validate(flattened);
             if (!validation.ok) {
                 sendChat(TextFormatting.RED + "[voice] " + validation.error);
-                client.reportResults(Collections.singletonList(
-                    ToolResult.fail("_validator", validation.error)));
+                macroOps.add(ToolResult.fail("_validator", validation.error));
+                client.reportResults(macroOps);
             } else if (flattened.isEmpty()) {
-                // Gemini replied with text only (e.g. refusing a goal-seeking request)
-                sendChat(TextFormatting.AQUA + "[voice] (no actions)");
+                if (macroOps.isEmpty()) {
+                    sendChat(TextFormatting.AQUA + "[voice] (no actions)");
+                } else {
+                    client.reportResults(macroOps);
+                }
             } else {
+                if (!macroOps.isEmpty()) client.reportResults(macroOps);
                 VoiceAnnounce.getQueue().submit(flattened);
                 sendChat(TextFormatting.GRAY + "[voice] executing " + flattened.size() + " step(s)");
             }
