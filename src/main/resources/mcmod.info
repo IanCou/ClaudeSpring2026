@@ -1,0 +1,9 @@
+[{
+  "modid": "voiceannounce",
+  "name": "Voice Command",
+  "description": "Voice-driven survival actions via Whisper + Gemini.",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "authorList": [],
+  "dependencies": []
+}]
